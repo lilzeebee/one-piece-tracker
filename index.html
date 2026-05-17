@@ -73,42 +73,39 @@
     </table>
 
     <script>
-        // ==========================================
-        // 1. CONFIGURATION: PASTE YOUR STEIN URL HERE
-        // ==========================================
         const STEIN_API_URL = "https://api.steinhq.com/v1/storages/6a09f07492b1163e97f6144d";
 
         let allCards = [];
-        let sharedInventory = {}; // Keyed by card_id: { owned: X, needed: Y, rowExists: true/false }
+        let sharedInventory = {}; 
         let currentFilter = 'all';
 
-        // 2. Fetch both Card Database and Google Sheet Data
         async function initializeApp() {
             try {
-                // Fetch basic data, photos, rules and layout details
                 const cardResponse = await fetch('https://raw.githubusercontent.com/limitless-tcg/one-piece-data/main/cards.json');
                 if (!cardResponse.ok) throw new Error('Could not pull card database metrics.');
                 const rawCards = await cardResponse.json();
                 allCards = Array.isArray(rawCards) ? rawCards : Object.values(rawCards);
 
-                // Try to load Google Sheet sync configurations if URL is specified
-                if (STEIN_API_URL && !STEIN_API_URL.includes("PASTE_YOUR_STEIN_API_URL_HERE")) {
+                if (STEIN_API_URL) {
                     try {
                         const sheetResponse = await fetch(STEIN_API_URL);
                         if (sheetResponse.ok) {
                             const sheetData = await sheetResponse.json();
-                            sheetData.forEach(row => {
-                                if (row.card_id) {
-                                    sharedInventory[row.card_id] = {
-                                        owned: parseInt(row.owned) || 0,
-                                        needed: parseInt(row.needed) || 0,
-                                        rowExists: true
-                                    };
-                                }
-                            });
+                            // Gracefully handle if the sheet is completely empty or not an array yet
+                            if (Array.isArray(sheetData)) {
+                                sheetData.forEach(row => {
+                                    if (row.card_id) {
+                                        sharedInventory[row.card_id] = {
+                                            owned: parseInt(row.owned) || 0,
+                                            needed: parseInt(row.needed) || 0,
+                                            rowExists: true
+                                        };
+                                    }
+                                });
+                            }
                         }
                     } catch (sheetErr) {
-                        console.error("Google Sheet pairing sleeping. Defaulting to local workspace mode.", sheetErr);
+                        console.error("Google Sheet parsing skipped. Running standard fallback mode.", sheetErr);
                     }
                 }
 
@@ -118,7 +115,6 @@
             }
         }
 
-        // 3. Render Master Layout with joined metrics
         function renderTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -129,7 +125,6 @@
                 const cardId = card.card_number || card.id || 'N/A';
                 const inv = sharedInventory[cardId] || { owned: 0, needed: 0 };
 
-                // Search Box filtering
                 const nameMatch = card.name && card.name.toLowerCase().includes(query);
                 const idMatch = cardId.toLowerCase().includes(query);
                 const effectMatch = (card.effect || card.text || '').toLowerCase().includes(query);
@@ -137,7 +132,6 @@
 
                 if (!matchesSearch) return false;
 
-                // Quick Filter adjustments
                 if (currentFilter === 'wish') return inv.needed > 0;
                 if (currentFilter === 'own') return inv.owned > 0;
                 return true;
@@ -155,10 +149,8 @@
                 const row = document.createElement('tr');
                 if (inv.owned > 0 || inv.needed > 0) row.className = 'has-items';
 
-                // Image resolution pathing
                 let imageSrc = card.image_url || card.image || 'https://limitlesstcg.s3.amazonaws.com/one-piece/cards/' + card.id + '.png';
 
-                // Pricing interface layout compilation
                 let priceHTML = '<ul class="price-list">';
                 if (card.prices) {
                     if (card.prices.normal) priceHTML += '<li>Normal: <strong>$' + card.prices.normal + '</strong></li>';
@@ -201,7 +193,6 @@
             });
         }
 
-        // 4. Update local state instantly, then push updates up to Stein Cloud
         async function updateQty(cardId, field, amount) {
             if (!sharedInventory[cardId]) {
                 sharedInventory[cardId] = { owned: 0, needed: 0, rowExists: false };
@@ -211,11 +202,9 @@
             if (newVal < 0) newVal = 0;
             sharedInventory[cardId][field] = newVal;
 
-            // Instant UI re-render so app feels fast
             renderTable();
 
-            // Push payload configuration adjustments to Google Cloud via Stein
-            if (!STEIN_API_URL || STEIN_API_URL.includes("PASTE_YOUR_STEIN_API_URL_HERE")) return;
+            if (!STEIN_API_URL) return;
 
             const banner = document.getElementById("syncBanner");
             banner.style.display = "block";
@@ -226,7 +215,6 @@
                 
                 let response;
                 if (isUpdate) {
-                    // Update matching row conditional matching parameters
                     response = await fetch(url, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
@@ -239,7 +227,6 @@
                         })
                     });
                 } else {
-                    // Insert a whole new card inventory listing
                     response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -252,13 +239,12 @@
                     if (response.ok) sharedInventory[cardId].rowExists = true;
                 }
             } catch (err) {
-                console.error("Cloud synchronizer encountered a communication fault:", err);
+                console.error("Cloud sync communication error:", err);
             } finally {
                 banner.style.display = "none";
             }
         }
 
-        // 5. Filtering states adjustments
         function filterTable() {
             renderTable();
         }
