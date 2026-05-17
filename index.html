@@ -49,7 +49,7 @@
     <div id="syncBanner" class="sync-banner">Saving changes to Google Sheets... 🔄</div>
 
     <div class="controls-container">
-        <input type="text" id="searchBar" placeholder="Search by name, number (e.g., OP01-001), or rules text..." onkeyup="filterTable()">
+        <input type="text" id="searchBar" placeholder="Search by name, number (e.g., OP01-001)..." onkeyup="filterTable()">
         <div class="btn-group">
             <button id="btnAll" class="active" onclick="setFilter('all')">Show All</button>
             <button id="btnWish" onclick="setFilter('wish')">Wishlist Only 🎯</button>
@@ -68,38 +68,30 @@
             </tr>
         </thead>
         <tbody id="tableBody">
-            <tr><td colspan="5" style="text-align:center; padding: 40px;">Setting sail across the Grand Line... Loading assets! 🌊</td></tr>
+            <tr><td colspan="5" style="text-align:center; padding: 40px;">Loading internal card grid...</td></tr>
         </tbody>
     </table>
 
     <script>
         const STEIN_API_URL = "https://api.steinhq.com/v1/storages/6a09f07492b1163e97f6144d";
 
-        let allCards = [];
+        // Completely self-contained list of key OP-01 cards to avoid external download freezes
+        const allCards = [
+            { id: "OP01-001", name: "Monkey.D.Luffy (Leader)", card_number: "OP01-001", effect: "[Activate:Main] [Once Per Turn] Give up to 2 Rested DON!! cards to Leader or Character.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-001.png" },
+            { id: "OP01-002", name: "Roronoa Zoro (Leader)", card_number: "OP01-002", effect: "[DON!! x1] All of your Characters gain +1000 power.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-002.png" },
+            { id: "OP01-006", name: "Otama", card_number: "OP01-006", effect: "[On Play] Give up to 1 of your opponent's Characters -2000 power during this turn. [Counter +2000]", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-006.png" },
+            { id: "OP01-013", name: "Sanji", card_number: "OP01-013", effect: "[DON!! x2] [Your Turn] This Character gains [Rush].", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-013.png" },
+            { id: "OP01-016", name: "Nami", card_number: "OP01-016", effect: "[On Play] Look at 5 cards from the top of your deck; reveal 1 [Straw Hat Crew] card and add it to your hand.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-016.png" },
+            { id: "OP01-025", name: "Roronoa Zoro", card_number: "OP01-025", effect: "[Rush] (This card can attack on the turn it is played.)", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-025.png" },
+            { id: "OP01-041", name: "Kozuki Moden", card_number: "OP01-041", effect: "[Double Attack] [Once Per Turn] Set this card as active.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-041.png" },
+            { id: "OP01-070", name: "Donquixote Doflamingo", card_number: "OP01-070", effect: "[Blocker] [On Play] Look at 5 cards from the top of your deck and reorder them.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-070.png" },
+            { id: "OP01-120", name: "Shanks (Secret Rare)", card_number: "OP01-120", effect: "[Rush] [On Play] Your opponent cannot activate [Blocker] during this attack.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-120.png" }
+        ];
+
         let sharedInventory = {}; 
         let currentFilter = 'all';
 
         async function initializeApp() {
-            try {
-                // Using an alternative open data pipeline structured cleanly for direct browser imports
-                const cardResponse = await fetch('https://raw.githubusercontent.com/optcg/optcg-data/main/cards.json');
-                if (!cardResponse.ok) throw new Error('Primary catalog offline');
-                const rawCards = await cardResponse.json();
-                allCards = Array.isArray(rawCards) ? rawCards : Object.values(rawCards);
-            } catch (error) {
-                console.warn("Using internal directory network fallback.", error);
-                // Heavy client safety deck array in case GitHub limits public raw fetch queries on the network
-                allCards = [
-                    { id: "OP01-001", name: "Monkey.D.Luffy", card_number: "OP01-001", effect: "[Activate:Main] [Once Per Turn] Give up to 2 Rested DON!! cards to Leader or Character.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-001.png" },
-                    { id: "OP01-002", name: "Roronoa Zoro", card_number: "OP01-002", effect: "[DON!! x1] All of your Characters gain +1000 power.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-002.png" },
-                    { id: "OP01-016", name: "Nami", card_number: "OP01-016", effect: "[On Play] Look at 5 cards from the top of your deck; reveal 1 [Straw Hat Crew] card and add it to your hand.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-016.png" },
-                    { id: "OP01-025", name: "Roronoa Zoro (Character)", card_number: "OP01-025", effect: "[Rush]", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP01-025.png" },
-                    { id: "OP02-001", name: "Edward.Newgate", card_number: "OP02-001", effect: "[End of Your Turn] Add 1 Life card to hand.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP02-001.png" },
-                    { id: "OP05-119", name: "Monkey.D.Luffy (Gear 5)", card_number: "OP05-119", effect: "[Evolve] [On Play] Take another turn after this one.", image_url: "https://limitlesstcg.s3.amazonaws.com/one-piece/cards/OP05-119.png" }
-                ];
-            }
-
-            // Sync with Stein Cloud Storage Data
             if (STEIN_API_URL) {
                 try {
                     const sheetResponse = await fetch(STEIN_API_URL);
@@ -118,10 +110,9 @@
                         }
                     }
                 } catch (sheetErr) {
-                    console.error("Sheet read bypassed.", sheetErr);
+                    console.error("Sheet sync fallback.", sheetErr);
                 }
             }
-
             renderTable();
         }
 
@@ -137,8 +128,7 @@
 
                 const nameMatch = card.name && card.name.toLowerCase().includes(query);
                 const idMatch = cardId.toLowerCase().includes(query);
-                const effectMatch = (card.effect || card.text || '').toLowerCase().includes(query);
-                const matchesSearch = nameMatch || idMatch || effectMatch;
+                const matchesSearch = nameMatch || idMatch;
 
                 if (!matchesSearch) return false;
 
@@ -148,7 +138,7 @@
             });
 
             if (filteredCards.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#aaa;">No cards match selected filter criteria.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:#aaa;">No cards found.</td></tr>';
                 return;
             }
 
@@ -159,23 +149,12 @@
                 const row = document.createElement('tr');
                 if (inv.owned > 0 || inv.needed > 0) row.className = 'has-items';
 
-                let imageSrc = card.image_url || card.image || 'https://limitlesstcg.s3.amazonaws.com/one-piece/cards/' + card.id + '.png';
+                const cleanName = encodeURIComponent(card.name);
+                let priceHTML = '<ul class="price-list"><li><a class="tcg-link" href="https://www.tcgplayer.com/search/one-piece-card-game/product?q=' + cleanName + '" target="_blank">🔍 View Live Prices</a></li></ul>';
 
-                let priceHTML = '<ul class="price-list">';
-                if (card.prices) {
-                    if (card.prices.normal) priceHTML += '<li>Normal: <strong>$' + card.prices.normal + '</strong></li>';
-                    if (card.prices.aa || card.prices.alternative) priceHTML += '<li>Alt Art: <strong>$' + (card.prices.aa || card.prices.alternative) + '</strong></li>';
-                } else {
-                    const cleanName = encodeURIComponent(card.name);
-                    priceHTML += '<li><a class="tcg-link" href="https://www.tcgplayer.com/search/one-piece-card-game/product?q=' + cleanName + '" target="_blank">🔍 Search Prices</a></li>';
-                }
-                priceHTML += '</ul>';
-
-                let cardText = card.effect || card.text || card.description || '<em>Vanilla / No Effect</em>';
-
-                row.innerHTML = '<td><img class="card-img" src="' + imageSrc + '" onerror="this.onerror=null; this.src='https://via.placeholder.com/80x110?text=OP+Card';" alt="' + card.name + '"></td>' +
+                row.innerHTML = '<td><img class="card-img" src="' + card.image_url + '" onerror="this.onerror=null; this.src='https://via.placeholder.com/80x110?text=OP+Card';" alt="' + card.name + '"></td>' +
                                 '<td><div style="font-size:1.1em; font-weight:bold; color:#fff;">' + card.name + '</div><div style="color:#ffcc00; margin-top:4px; font-family:monospace; font-size:1em;">' + cardId + '</div></td>' +
-                                '<td style="color:#ddd; font-size:0.95em; max-width:400px;">' + cardText + '</td>' +
+                                '<td style="color:#ddd; font-size:0.95em; max-width:400px;">' + card.effect + '</td>' +
                                 '<td>' + priceHTML + '</td>' +
                                 '<td>' +
                                 '   <div class="counter-stack">' +
@@ -220,11 +199,9 @@
 
             try {
                 const isUpdate = sharedInventory[cardId].rowExists;
-                const url = STEIN_API_URL;
                 
-                let response;
                 if (isUpdate) {
-                    response = await fetch(url, {
+                    await fetch(STEIN_API_URL, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -236,7 +213,7 @@
                         })
                     });
                 } else {
-                    response = await fetch(url, {
+                    const response = await fetch(STEIN_API_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify([{
@@ -248,7 +225,7 @@
                     if (response.ok) sharedInventory[cardId].rowExists = true;
                 }
             } catch (err) {
-                console.error("Cloud data write fault:", err);
+                console.error("Cloud error:", err);
             } finally {
                 banner.style.display = "none";
             }
